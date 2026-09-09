@@ -344,6 +344,7 @@ UserModel.login = async ({ username, password }) => {
     const client = await db.connect();
     try {
         await client.query(TRANS.BEGIN);
+        const normalizedUsername = username?.trim();
         const { rows: userData, rowCount } = await client.query(
             ` SELECT USERNAME,
             FULLNAME,
@@ -356,8 +357,8 @@ UserModel.login = async ({ username, password }) => {
             U.ID_USER AS ID
         FROM MST_USER U
         LEFT JOIN MST_ROLE RL ON RL.ROLE_ID = U.ROLE
-        WHERE U.USERNAME = $1`,
-            [username]
+        WHERE UPPER(TRIM(U.USERNAME)) = UPPER(TRIM($1))`,
+            [normalizedUsername]
         );
         if (rowCount <= 0) {
             throw new Error("NOT EXIST");

@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "local_dev": "set NODE_ENV=local&& nodemon server.js",
-    "server_dev": "set NODE_ENV=development&& nodemon server.js",
-    "server_prod": "set NODE_ENV=production&& nodemon server.js",
-    "server_sbx": "set NODE_ENV=sandbox&& nodemon server.js"
+    "local_dev": "set NODE_ENV=local&& nodemon index.js",
+    "server_dev": "set NODE_ENV=development&& nodemon index.js",
+    "server_prod": "set NODE_ENV=production&& nodemon index.js",
+    "server_sbx": "set NODE_ENV=sandbox&& nodemon index.js"
   },
   "author": "",
   "license": "ISC",
