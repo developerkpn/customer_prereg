@@ -2117,6 +2117,53 @@ LoadingNoteModel.getSSRecap = async (filters, customer_id, skipid = false) => {
     }
 };
 
+LoadingNoteModel.getReportFilterOptions = async () => {
+    const plantQue = `SELECT
+            hd.plant AS value,
+            MAX(CASE
+                WHEN mcp.plant_code IS NOT NULL
+                THEN CONCAT(mcp.plant_code, ' - ', mcp.company_name, ' ', mcp.lokasi)
+                ELSE hd.plant
+            END) AS label
+        FROM loading_note_hd hd
+        JOIN loading_note_det det ON det.hd_fk = hd.hd_id AND det.is_active = true
+        LEFT JOIN mst_company_plant mcp ON mcp.plant_code = hd.plant
+        WHERE hd.plant IS NOT NULL AND hd.plant <> ''
+        GROUP BY hd.plant
+        ORDER BY hd.plant ASC`;
+    const customerQue = `SELECT
+            COALESCE(cust.kunnr, ven.lifnr, int.kunnr) AS value,
+            MAX(CONCAT(
+                COALESCE(cust.kunnr, ven.lifnr, int.kunnr),
+                ' - ',
+                COALESCE(cust.name_1, ven.name_1, int.name_1, '')
+            )) AS label
+        FROM loading_note_hd hd
+        JOIN loading_note_det det ON det.hd_fk = hd.hd_id AND det.is_active = true
+        LEFT JOIN mst_user usr ON hd.create_by = usr.id_user
+        LEFT JOIN mst_customer cust ON usr.username = cust.kunnr
+        LEFT JOIN mst_vendor ven ON ven.lifnr = usr.username
+        LEFT JOIN mst_interco int ON int.kunnr = usr.username
+        WHERE COALESCE(cust.kunnr, ven.lifnr, int.kunnr) IS NOT NULL
+        GROUP BY COALESCE(cust.kunnr, ven.lifnr, int.kunnr)
+        ORDER BY 1 ASC`;
+    try {
+        const client = await db.connect();
+        try {
+            const { rows: plants } = await client.query(plantQue);
+            const { rows: customers } = await client.query(customerQue);
+            return { plants, customers };
+        } catch (error) {
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
 LoadingNoteModel.getReportLN = async (filters, customer_id, limit, offset) => {
     const getRecapData = `SELECT
             DET.LN_NUM,
@@ -2273,10 +2320,14 @@ LoadingNoteModel.getReportLN = async (filters, customer_id, limit, offset) => {
         } else if (item.id === "q") {
             value = item.value + ":*";
             id = ["det.search_vector", "hd.search_vector"];
+        } else if (item.id === "report_plant") {
+            id = "hd.plant";
+        } else if (item.id === "report_customer") {
+            id = ["cust.kunnr", "ven.lifnr", "int.kunnr"];
         }
         if (!date) {
             // console.log(item);
-            if (item.id === "Customer") {
+            if (item.id === "Customer" || item.id === "report_customer") {
                 where.push(
                     `(${id[0]} = $${ltindex + 1} OR ${id[1]} = $${ltindex + 2} OR ${id[2]} = $${ltindex + 3})`
                 );
@@ -2334,15 +2385,15 @@ LoadingNoteModel.getReportLN = async (filters, customer_id, limit, offset) => {
                 count: dataCount[0].count_rows,
                 sum_data: {
                     ...dataCount[0],
-                    con_qty: rows[0].con_qty,
-                    uom: rows[0].uom,
+                    con_qty: rows[0]?.con_qty,
+                    uom: rows[0]?.uom,
                     plan_qty: planQty[0].plan_qty,
                     pending_qty: pendingQty[0].plan_qty,
                     postedTotal: postTot[0].receive,
                     unpostedTotal: unpostTot[0].receive,
                 },
             };
-            if (do_number) {
+            if (do_number && dataCount[0].max_tgl_muat) {
                 const { rows: contractData } = await client.query(contractQue, [
                     do_number.value,
                 ]);

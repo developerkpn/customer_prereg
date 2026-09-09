@@ -502,6 +502,20 @@ LoadingNoteController.getDataReport = async (req, res) => {
     }
 };
 
+LoadingNoteController.getReportFilterOptions = async (req, res) => {
+    try {
+        const role = req.cookies.role;
+        if (role !== "ADMIN" && role !== "LOGISTIC" && role !== "COMMERCIAL") {
+            return res.status(403).send({ message: "Forbidden" });
+        }
+        const data = await LoadNote.getReportFilterOptions();
+        res.status(200).send(data);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: error.message });
+    }
+};
+
 LoadingNoteController.generateExcel = async (req, res) => {
     try {
         const filters = req.body.filters;

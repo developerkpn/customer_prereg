@@ -49,5 +49,6 @@ router.get("/lndatasap", LoadNote.LNDataSAP);
 router.post("/synclnsap", LoadNote.syncLNSAP);
 router.post("/syncstgwb", LoadNote.syncDataStagingWBNET);
 router.get("/choicesyncwbnet", LoadNote.choicesSyncStagingWBNET);
+router.get("/reportfilters", LoadNote.getReportFilterOptions);
 
 module.exports = router;

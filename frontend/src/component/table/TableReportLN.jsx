@@ -40,6 +40,8 @@ import AutoCompleteDODB from "../input/AutoCompleteDODB";
 import toast from "react-hot-toast";
 import { LoadingButton } from "@mui/lab";
 import ModalSyncWBNET from "../../pages/recap/ModalSyncWBNET";
+import SelectReportFilter from "../input/SelectReportFilter";
+import { useSession } from "../../provider/sessionProvider";
 
 export default function TableReportLN() {
     const formatNumber = (number, uom) => {
@@ -51,6 +53,18 @@ export default function TableReportLN() {
     };
     const theme = useTheme();
     const axiosPrivate = useAxiosPrivate();
+    const { session } = useSession();
+    const canFilterMaster =
+        session?.role === "ADMIN" ||
+        session?.role === "LOGISTIC" ||
+        session?.role === "COMMERCIAL";
+    const [plantFilter, setPlantFilter] = useState(null);
+    const [customerFilter, setCustomerFilter] = useState(null);
+    const [filterOptions, setFilterOptions] = useState({
+        plants: [],
+        customers: [],
+    });
+    const [loadingOptions, setLoadingOptions] = useState(false);
     const initialDateRange = useRef({ from: moment(), to: moment() });
     const paginate = useRef({
         limit: 20,
@@ -107,6 +121,25 @@ export default function TableReportLN() {
     });
     const column = useMemo(
         () => [
+            ...(canFilterMaster
+                ? [
+                      {
+                          header: "Plant",
+                          accessorKey: "plant",
+                          cell: props => props.getValue(),
+                          enableColumnFilter: false,
+                      },
+                      {
+                          header: "Customer",
+                          accessorFn: row =>
+                              row.kunnr
+                                  ? `${row.kunnr} - ${row.name_1 ?? ""}`
+                                  : "",
+                          cell: props => props.getValue(),
+                          enableColumnFilter: false,
+                      },
+                  ]
+                : []),
             {
                 header: "Do Number",
                 accessorKey: "id_do",
@@ -225,8 +258,10 @@ export default function TableReportLN() {
                 enableColumnFilter: false,
             },
         ],
-        []
+        [canFilterMaster]
     );
+
+    const leadColCount = canFilterMaster ? 9 : 7;
 
     const [data, setData] = useState([]);
     const memoizeData = useMemo(() => data, [data]);
@@ -268,6 +303,18 @@ export default function TableReportLN() {
                         id: "id_do",
                         value: do_number,
                     },
+                ];
+            }
+            if (plantFilter) {
+                filters = [
+                    ...filters,
+                    { id: "report_plant", value: plantFilter.value },
+                ];
+            }
+            if (customerFilter) {
+                filters = [
+                    ...filters,
+                    { id: "report_customer", value: customerFilter.value },
                 ];
             }
 
@@ -364,6 +411,18 @@ export default function TableReportLN() {
                     },
                 ];
             }
+            if (plantFilter) {
+                filters = [
+                    ...filters,
+                    { id: "report_plant", value: plantFilter.value },
+                ];
+            }
+            if (customerFilter) {
+                filters = [
+                    ...filters,
+                    { id: "report_customer", value: customerFilter.value },
+                ];
+            }
             const response = await axiosPrivate.post(
                 "/ln/genexcelv2",
                 {
@@ -422,6 +481,25 @@ export default function TableReportLN() {
             setSyncSAP(false);
         }
     };
+
+    useEffect(() => {
+        if (!canFilterMaster) return;
+        (async () => {
+            setLoadingOptions(true);
+            try {
+                const { data } = await axiosPrivate.get("/ln/reportfilters");
+                setFilterOptions({
+                    plants: data?.plants ?? [],
+                    customers: data?.customers ?? [],
+                });
+            } catch (error) {
+                console.error(error);
+                toast.error("Failed to load filter options");
+            } finally {
+                setLoadingOptions(false);
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         setIsFetch(true);
@@ -483,7 +561,7 @@ export default function TableReportLN() {
                 }
             }
         })();
-    }, [columnFilter, refresh, do_number]);
+    }, [columnFilter, refresh, do_number, plantFilter, customerFilter]);
 
     const fetchMoreOnBottom = debounce(async containerRef => {
         if (containerRef) {
@@ -543,6 +621,7 @@ export default function TableReportLN() {
                 <div
                     style={{
                         display: "flex",
+                        flexWrap: "wrap",
                         margin: "0 0 1rem 0",
                         gap: "1rem",
                     }}
@@ -577,6 +656,26 @@ export default function TableReportLN() {
                         label="SO Number"
                         sx={{ width: "20rem" }}
                     />
+                    {canFilterMaster ? (
+                        <>
+                            <SelectReportFilter
+                                label="Plant"
+                                options={filterOptions.plants}
+                                value={plantFilter}
+                                onChange={setPlantFilter}
+                                loading={loadingOptions}
+                                sx={{ width: "16rem" }}
+                            />
+                            <SelectReportFilter
+                                label="Customer"
+                                options={filterOptions.customers}
+                                value={customerFilter}
+                                onChange={setCustomerFilter}
+                                loading={loadingOptions}
+                                sx={{ width: "20rem" }}
+                            />
+                        </>
+                    ) : null}
                     <Tooltip title="Sync WBNET">
                         <Button
                             onClick={() => {
@@ -766,7 +865,7 @@ export default function TableReportLN() {
                             <TableFooter>
                                 <TableRow>
                                     <TableCell
-                                        colSpan={7}
+                                        colSpan={leadColCount}
                                         sx={{
                                             left: 0,
                                             bottom: 0, // <-- KEY
@@ -923,7 +1022,9 @@ export default function TableReportLN() {
                                         {summary.unpostedTotal}
                                     </TableCell>
                                     <TableCell
-                                        colSpan={column.length - 7 - 3}
+                                        colSpan={
+                                            column.length - leadColCount - 3
+                                        }
                                         sx={{
                                             left: 0,
                                             bottom: 0, // <-- KEY
